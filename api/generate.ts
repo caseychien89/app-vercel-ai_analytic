@@ -1,27 +1,6 @@
-import express from "express";
-import path from "path";
-import { createServer as createViteServer } from "vite";
+import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { GoogleGenAI } from "@google/genai";
-import dotenv from "dotenv";
 
-dotenv.config();
-
-const app = express();
-const PORT = 3000;
-
-app.use(express.json());
-
-// Initialize Gemini on the server side securely
-const ai = new GoogleGenAI({
-  apiKey: process.env.GEMINI_API_KEY,
-  httpOptions: {
-    headers: {
-      "User-Agent": "aistudio-build",
-    },
-  },
-});
-
-// System Instructions to shape Gemini's behavior for high-quality minutes
 const SYSTEM_INSTRUCTIONS = `你是一位專業且極具條理的「高階會議記錄祕書與專業翻譯官」。
 你的任務是將使用者提供的「會議逐字稿」或「會議重點筆記」進行深度分析，並生成一份格式精美、條理清晰的繁體中文會議紀錄，並依據使用者指定的目標語言（Target Language）在最下方附上「核心摘要與待辦事項」之雙語翻譯。
 
@@ -81,18 +60,24 @@ const SYSTEM_INSTRUCTIONS = `你是一位專業且極具條理的「高階會議
 2. 使用標準 Markdown 語法，使排版清爽美觀，結構層次清晰、不繁複。
 `;
 
-app.post("/api/summarize", async (req, res) => {
-  const { transcript, targetLanguage, detailLevel } = req.body;
+export default async function handler(req: VercelRequest, res: VercelResponse) {
+  // Only allow POST requests
+  if (req.method !== "POST") {
+    res.setHeader("Allow", ["POST"]);
+    return res.status(405).json({ error: `Method ${req.method} Not Allowed` });
+  }
+
+  const { provider, transcript, targetLanguage, detailLevel } = req.body || {};
 
   if (!transcript || typeof transcript !== "string") {
     return res.status(400).json({ error: "會議內容（逐字稿或筆記）不得為空" });
   }
 
+  const selectedProvider = provider || "google";
+
   try {
     const languageName = targetLanguage || "英文 (English)";
     const currentDetail = detailLevel || "標準";
-
-    // Build system instructions with specific target language
     const finalSystemInstruction = SYSTEM_INSTRUCTIONS.replace(/\[TARGET_LANGUAGE\]/g, languageName);
 
     const userPrompt = `
@@ -108,50 +93,78 @@ ${transcript}
 請開始為我生成這份完美、精緻排版的會議紀錄：
 `;
 
-    const response = await ai.models.generateContent({
-      model: "gemini-3.5-flash",
-      contents: userPrompt,
-      config: {
-        systemInstruction: finalSystemInstruction,
-        temperature: 0.15, // Low temperature for high factual accuracy
-      },
-    });
+    let resultText = "";
 
-    const resultText = response.text || "無法生成內容，請重試。";
+    if (selectedProvider === "google") {
+      const apiKey = process.env.GEMINI_API_KEY;
+      if (!apiKey) {
+        return res.status(500).json({ error: "未設定 GEMINI_API_KEY 環境變數，請確認後端設定。" });
+      }
 
-    res.json({
+      const ai = new GoogleGenAI({
+        apiKey: apiKey,
+        httpOptions: {
+          headers: {
+            "User-Agent": "aistudio-build",
+          },
+        },
+      });
+
+      const response = await ai.models.generateContent({
+        model: "gemini-2.5-flash-lite",
+        contents: userPrompt,
+        config: {
+          systemInstruction: finalSystemInstruction,
+          temperature: 0.15,
+        },
+      });
+
+      resultText = response.text || "無法生成內容，請重試。";
+
+    } else if (selectedProvider === "nvidia") {
+      const apiKey = process.env.NVIDIA_API_KEY;
+      if (!apiKey) {
+        return res.status(500).json({ error: "未設定 NVIDIA_API_KEY 環境變數，請確認後端設定。" });
+      }
+
+      const response = await fetch("https://integrate.api.nvidia.com/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${apiKey}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          model: "nvidia/nemotron-mini-4b-instruct",
+          messages: [
+            { role: "system", content: finalSystemInstruction },
+            { role: "user", content: userPrompt }
+          ],
+          temperature: 0.15,
+          max_tokens: 4096,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`NVIDIA API 錯誤: ${response.status} - ${errorText}`);
+      }
+
+      const data = await response.json();
+      resultText = data.choices?.[0]?.message?.content || "無法生成內容，請重試。";
+
+    } else {
+      return res.status(400).json({ error: `不支援的 AI 服務商: ${selectedProvider}` });
+    }
+
+    return res.status(200).json({
       success: true,
       text: resultText,
     });
+
   } catch (error: any) {
-    console.error("Gemini API 處理失敗:", error);
-    res.status(500).json({
+    console.error("AI 處理失敗:", error);
+    return res.status(500).json({
       error: error.message || "AI 處理時發生系統錯誤，請確認 API Key 是否設定正確。",
     });
   }
-});
-
-// Serve static assets in production, hook Vite dev server middleware in dev mode
-const startServer = async () => {
-  if (process.env.NODE_ENV !== "production") {
-    const vite = await createViteServer({
-      server: { middlewareMode: true },
-      appType: "spa",
-    });
-    app.use(vite.middlewares);
-  } else {
-    const distPath = path.join(process.cwd(), "dist");
-    app.use(express.static(distPath));
-    app.get("*", (req, res) => {
-      res.sendFile(path.join(distPath, "index.html"));
-    });
-  }
-
-  app.listen(PORT, "0.0.0.0", () => {
-    console.log(`Server running on port ${PORT}`);
-  });
-};
-
-startServer().catch((err) => {
-  console.error("Failed to start server", err);
-});
+}

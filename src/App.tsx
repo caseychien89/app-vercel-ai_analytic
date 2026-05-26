@@ -34,6 +34,7 @@ export default function App() {
   const [toastMessage, setToastMessage] = useState<string>("");
   const [selectedTemplateId, setSelectedTemplateId] = useState<string>("");
   const [loadingStep, setLoadingStep] = useState<number>(0);
+  const [provider, setProvider] = useState<string>("google");
   
   // Custom interactive Bento feature states
   const [smartCategory, setSmartCategory] = useState<boolean>(true);
@@ -101,12 +102,13 @@ export default function App() {
     setResultText("");
 
     try {
-      const response = await fetch("/api/summarize", {
+      const response = await fetch("/api/generate", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
+          provider,
           transcript: inputText,
           targetLanguage,
           detailLevel: `${detailLevel}${smartCategory ? "（啟用智慧分類與標籤識別）" : ""}`,
@@ -123,7 +125,7 @@ export default function App() {
       triggerToast("會議紀錄與翻譯生成成功！");
     } catch (err: any) {
       console.error(err);
-      setErrorMsg(err.message || "連線至 AI 伺服器失敗，請檢查環境變數 GEMINI_API_KEY 是否正確設定。");
+      setErrorMsg(err.message || "連線至 AI 伺服器失敗，請檢查環境變數 GEMINI_API_KEY 或 NVIDIA_API_KEY 是否正確設定。");
     } finally {
       setLoading(false);
     }
@@ -211,7 +213,9 @@ export default function App() {
         <div className="flex gap-3 shrink-0">
           <div className="px-3.5 py-2 bg-white border border-slate-200/80 rounded-xl flex items-center gap-2 shadow-xs">
             <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse"></div>
-            <span className="text-xs font-semibold text-slate-700">Gemini 3.5 已上線</span>
+            <span className="text-xs font-semibold text-slate-700">
+              {provider === "google" ? "Gemini 2.5 Lite 已啟動" : "NVIDIA Nemotron 已啟動"}
+            </span>
           </div>
         </div>
       </header>
@@ -415,6 +419,21 @@ export default function App() {
             <div className="space-y-4">
               <div>
                 <label className="text-[10px] text-slate-500 block mb-1 font-bold uppercase tracking-wider">
+                  AI 服務提供商 (AI Provider)
+                </label>
+                <select
+                  value={provider}
+                  onChange={(e) => setProvider(e.target.value)}
+                  disabled={loading}
+                  className="w-full bg-slate-800 text-slate-200 border-none rounded-lg text-xs py-2 px-3 focus:ring-1 focus:ring-indigo-500 outline-hidden font-medium cursor-pointer"
+                >
+                  <option value="google">Google Gemini (gemini-2.5-flash-lite)</option>
+                  <option value="nvidia">NVIDIA (nvidia/nemotron-mini-4b-instruct)</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="text-[10px] text-slate-500 block mb-1 font-bold uppercase tracking-wider">
                   目標語言 (Target Language for Translation)
                 </label>
                 <select
@@ -494,8 +513,8 @@ export default function App() {
           </div>
 
           <div className="mt-4 pt-4 border-t border-slate-800 flex items-center justify-between text-[10px] text-slate-500">
-            <span>底層神經網路：Gemini API</span>
-            <span className="text-yellow-500 font-bold">100% 伺服器端整合</span>
+            <span>底層神經網路：{provider === "google" ? "Gemini 2.5 Lite" : "NVIDIA Nemotron Mini"}</span>
+            <span className="text-yellow-500 font-bold">100% Serverless Functions</span>
           </div>
         </section>
 
