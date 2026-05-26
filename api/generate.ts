@@ -1,5 +1,11 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { GoogleGenAI } from "@google/genai";
+import dotenv from "dotenv";
+import path from "path";
+
+// Load local environment variables for local testing
+dotenv.config({ path: path.resolve(process.cwd(), ".env.local") });
+dotenv.config(); // Fallback for standard .env or other host envs
 
 const SYSTEM_INSTRUCTIONS = `你是一位專業且極具條理的「高階會議記錄祕書與專業翻譯官」。
 你的任務是將使用者提供的「會議逐字稿」或「會議重點筆記」進行深度分析，並生成一份格式精美、條理清晰的繁體中文會議紀錄，並依據使用者指定的目標語言（Target Language）在最下方附上「核心摘要與待辦事項」之雙語翻譯。
@@ -134,7 +140,7 @@ ${transcript}
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          model: "nvidia/nemotron-mini-4b-instruct",
+          model: "meta/llama-4-maverick-17b-128e-instruct",
           messages: [
             { role: "system", content: finalSystemInstruction },
             { role: "user", content: userPrompt }

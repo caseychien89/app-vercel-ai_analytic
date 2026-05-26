@@ -214,7 +214,7 @@ export default function App() {
           <div className="px-3.5 py-2 bg-white border border-slate-200/80 rounded-xl flex items-center gap-2 shadow-xs">
             <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse"></div>
             <span className="text-xs font-semibold text-slate-700">
-              {provider === "google" ? "Gemini 2.5 Lite 已啟動" : "NVIDIA Nemotron 已啟動"}
+              {provider === "google" ? "Gemini 2.5 Lite 已啟動" : "NVIDIA Llama 4 已啟動"}
             </span>
           </div>
         </div>
@@ -428,7 +428,7 @@ export default function App() {
                   className="w-full bg-slate-800 text-slate-200 border-none rounded-lg text-xs py-2 px-3 focus:ring-1 focus:ring-indigo-500 outline-hidden font-medium cursor-pointer"
                 >
                   <option value="google">Google Gemini (gemini-2.5-flash-lite)</option>
-                  <option value="nvidia">NVIDIA (nvidia/nemotron-mini-4b-instruct)</option>
+                  <option value="nvidia">NVIDIA (meta/llama-4-maverick-17b-128e-instruct)</option>
                 </select>
               </div>
 
@@ -513,7 +513,7 @@ export default function App() {
           </div>
 
           <div className="mt-4 pt-4 border-t border-slate-800 flex items-center justify-between text-[10px] text-slate-500">
-            <span>底層神經網路：{provider === "google" ? "Gemini 2.5 Lite" : "NVIDIA Nemotron Mini"}</span>
+            <span>底層神經網路：{provider === "google" ? "Gemini 2.5 Lite" : "NVIDIA Llama 4 Maverick"}</span>
             <span className="text-yellow-500 font-bold">100% Serverless Functions</span>
           </div>
         </section>
